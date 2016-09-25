@@ -2,13 +2,11 @@ using BinDeps
 
 @BinDeps.setup
 
-commit = "d01efaa5de2cb54c0d378c8f077d641b0d4dd843"
-repo = "https://github.com/peterwittek/somoclu/archive/$commit.zip"
-somocluname = "somoclu-$commit"
+link = "https://github.com/peterwittek/somoclu/releases/download/1.6.2/somoclu-1.7.0-pre.tar.gz"
 
 libsomoclu = library_dependency("libsomoclu")
 
-provides(Sources, Dict(URI(repo) => libsomoclu), unpacked_dir="$somocluname")
+provides(Sources, Dict(URI(link) => libsomoclu))
 
 provides(BuildProcess, Autotools(libtarget = joinpath("src", "libsomoclu.so"), configure_options=[AbstractString("--without-mpi")]), libsomoclu)
 
