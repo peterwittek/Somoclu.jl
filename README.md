@@ -1,5 +1,3 @@
-# Somoclu
-
 [![Build Status](https://travis-ci.org/peterwittek/Somoclu.jl.svg?branch=master)](https://travis-ci.org/peterwittek/Somoclu.jl)
 [![Coverage Status](https://coveralls.io/repos/peterwittek/Somoclu.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/peterwittek/Somoclu.jl?branch=master)
 [![codecov.io](http://codecov.io/github/peterwittek/Somoclu.jl/coverage.svg?branch=master)](http://codecov.io/github/peterwittek/Somoclu.jl?branch=master)
@@ -7,7 +5,7 @@
 Somoclu.jl - Julia Interface for Somoclu
 ========================================
 
-Somoclu is a massively parallel implementation of self-organizing maps. It relies on OpenMP for multicore execution and it can be accelerated by CUDA. The topology of map is either planar or toroid, the grid is rectangular or hexagonal.
+[Somoclu](https://github.com/peterwittek/somoclu) is a massively parallel implementation of self-organizing maps. It relies on OpenMP for multicore execution and it can be accelerated by CUDA. The topology of map is either planar or toroid, the grid is rectangular or hexagonal.
 
 Key features of the Julia interface:
 
