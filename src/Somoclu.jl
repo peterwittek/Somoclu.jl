@@ -11,9 +11,9 @@ else
 end
 
 """
-    train(data::Array{Float32, 2}, nSomX, nSomY; <keyword arguments>)
+    train(data::Array{Float32, 2}, ncolumns, nrows; <keyword arguments>)
 
-Train a self-organizing map of size `nSomX`x`nSomY` on `data`.
+Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
 
 
 # Arguments
@@ -40,20 +40,20 @@ Train a self-organizing map of size `nSomX`x`nSomY` on `data`.
                                    scaleN: `"linear"` or `"exponential"`.
 
 """
-function train(data::Array{Float32, 2}, nSomX, nSomY; epochs=10, radius0=0, radiusN=1, radiusCooling="linear", scale0=0.1, scaleN=0.01, scaleCooling="linear", kernelType=0, mapType="planar", gridType="square", compact_support=false, neighborhood="gaussian")
+function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=false, neighborhood="gaussian")
     nDimensions, nVectors = size(data)
-    codebook = Array{Float32}(nDimensions, nSomX*nSomY);
+    codebook = Array{Float32}(nDimensions, ncolumns*nrows);
     # These two lines trigger the C++ code to randomly initialize the codebook
     codebook[1, 1] = 1000.0
     codebook[2, 1] = 2000.0
-    uMatrix, bmus = train!(codebook, data, nSomX, nSomY, epochs=epochs, radius0=radius0, radiusN=radiusN, radiusCooling=radiusCooling, scale0=scale0, scaleN=scaleN, scaleCooling=scaleCooling, kernelType=kernelType, mapType=mapType, gridType=gridType, compact_support=compact_support, neighborhood=neighborhood)
-    return codebook, uMatrix, bmus
+    umatrix, bmus = train!(codebook, data, ncolumns, nrows, epochs=epochs, radius0=radius0, radiusN=radiusN, radiuscooling=radiuscooling, scale0=scale0, scaleN=scaleN, scalecooling=scalecooling, kerneltype=kerneltype, maptype=maptype, gridtype=gridtype, compactsupport=compactsupport, neighborhood=neighborhood)
+    return codebook, umatrix, bmus
 end
 
 """
-    train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, nSomX, nSomY; <keyword arguments>)
+    train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, nrows; <keyword arguments>)
 
-Train a self-organizing map of size `nSomX`x`nSomY` on `data` given an initial
+Train a self-organizing map of size `ncolumns`x`nrows` on `data` given an initial
 `codebook`.
 
 The codebook will be updated during the training.
@@ -82,41 +82,41 @@ The codebook will be updated during the training.
                                    scaleN: `"linear"` or `"exponential"`.
 
 """
-function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, nSomX, nSomY; epochs=10, radius0=0, radiusN=1, radiusCooling="linear", scale0=0.1, scaleN=0.01, scaleCooling="linear", kernelType=0, mapType="planar", gridType="square", compact_support=false, neighborhood="gaussian")
-    if radiusCooling == "linear"
-        _radiusCooling = 0
-    elseif radiusCooling == "exponential"
-        _radiusCooling = 1
+function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=false, neighborhood="gaussian")
+    if radiuscooling == "linear"
+        _radiuscooling = 0
+    elseif radiuscooling == "exponential"
+        _radiuscooling = 1
     else
         error("Unknown radius cooling")
     end
-    if scaleCooling == "linear"
-        _scaleCooling = 0
-    elseif scaleCooling == "exponential"
-        _scaleCooling = 1
+    if scalecooling == "linear"
+        _scalecooling = 0
+    elseif scalecooling == "exponential"
+        _scalecooling = 1
     else
         error("Unknown scale cooling")
     end
-    if mapType == "planar"
-        _mapType = 0
-    elseif mapType == "toroid"
-        _mapType = 1
+    if maptype == "planar"
+        _maptype = 0
+    elseif maptype == "toroid"
+        _maptype = 1
     else
         error("Unknown map type")
     end
-    if gridType == "square"
-        _gridType = 0
-    elseif gridType == "hexagonal"
-        _gridType = 1
+    if gridtype == "square"
+        _gridtype = 0
+    elseif gridtype == "hexagonal"
+        _gridtype = 1
     else
         error("Unknown grid type")
     end
     nDimensions, nVectors = size(data)
     bmus = Array{Cint}(nVectors*2);
-    uMatrix = Array{Float32}(nSomX*nSomY);
+    umatrix = Array{Float32}(ncolumns*nrows);
 
-    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nSomX, nSomY, nDimensions, nVectors, radius0, radiusN, _radiusCooling, scale0, scaleN, _scaleCooling, kernelType, _mapType, _gridType, compact_support, neighborhood=="gaussian", reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), uMatrix, length(uMatrix))
-    return reshape(bmus, 2, nVectors), reshape(uMatrix, nSomX, nSomY)
+    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, ncolumns, nrows, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, kerneltype, _maptype, _gridtype, compactsupport, neighborhood=="gaussian", reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), umatrix, length(umatrix))
+    return reshape(bmus, 2, nVectors), reshape(umatrix, ncolumns, nrows)
 end
 
 end
