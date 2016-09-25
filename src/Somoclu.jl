@@ -1,4 +1,14 @@
+__precompile__(true)
+
 module Somoclu
+
+using BinDeps
+
+if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
+    include("../deps/deps.jl")
+else
+    error("Somoclu not properly installed. Please run Pkg.build(\"Somoclu\")")
+end
 
 """
     train(data::Array{Float32, 2}, nSomX, nSomY; <keyword arguments>)
@@ -105,7 +115,7 @@ function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, nSomX, nSo
     bmus = Array{Cint}(nVectors*2);
     uMatrix = Array{Float32}(nSomX*nSomY);
 
-    ccall((:julia_train, "libsomoclu.so"), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nSomX, nSomY, nDimensions, nVectors, radius0, radiusN, _radiusCooling, scale0, scaleN, _scaleCooling, kernelType, _mapType, _gridType, compact_support, neighborhood=="gaussian", reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), uMatrix, length(uMatrix))
+    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nSomX, nSomY, nDimensions, nVectors, radius0, radiusN, _radiusCooling, scale0, scaleN, _scaleCooling, kernelType, _mapType, _gridType, compact_support, neighborhood=="gaussian", reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), uMatrix, length(uMatrix))
     return reshape(bmus, 2, nVectors), reshape(uMatrix, nSomX, nSomY)
 end
 
