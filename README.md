@@ -21,18 +21,18 @@ A simple example is as follows.
 ```julia
 using Somoclu
 
-nSomX, nSomY = 40, 30;
-nDimensions, nVectors = 2, 20;
-c1 = Array{Float32}(rand(nDimensions, nVectors));
-c2 = Array{Float32}(rand(nDimensions, nVectors));
+ncolumns, nrows = 40, 30;
+ndimensions, nvectors = 2, 20;
+c1 = Array{Float32}(rand(ndimensions, nvectors));
+c2 = Array{Float32}(rand(ndimensions, nvectors));
 c2[1, :] = c2[1, :] .+ 0.2;
 c2[2, :] = c2[1, :] .+ 0.5;
-c3 = Array{Float32}(rand(nDimensions, nVectors));
+c3 = Array{Float32}(rand(ndimensions, nvectors));
 c3[1, :] = c3[1, :] .+ 0.4;
 c3[2, :] = c3[1, :] .+ 0.1;
 data = hcat(c1, c2, c3);
 
-codebook, bmus, uMatrix = Somoclu.train(data, nSomX, nSomY, mapType="toroid");
+codebook, bmus, uMatrix = Somoclu.train(data, ncolumns, nrows, maptype="toroid");
 ```
 
 Citation
