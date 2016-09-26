@@ -32,7 +32,7 @@ c3[1, :] = c3[1, :] .+ 0.4;
 c3[2, :] = c3[1, :] .+ 0.1;
 data = hcat(c1, c2, c3);
 
-codebook, bmus, uMatrix = Somoclu.train(data, ncolumns, nrows, maptype="toroid");
+codebook, bmus, umatrix = train(data, ncolumns, nrows, maptype="toroid");
 ```
 
 Citation

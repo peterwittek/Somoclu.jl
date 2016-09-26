@@ -4,6 +4,8 @@ module Somoclu
 
 using BinDeps
 
+export train, train!
+
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
 else
