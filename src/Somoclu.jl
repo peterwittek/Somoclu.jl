@@ -117,8 +117,9 @@ function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, 
     bmus = Array{Cint}(nVectors*2);
     umatrix = Array{Float32}(ncolumns*nrows);
 
-    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, ncolumns, nrows, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, kerneltype, _maptype, _gridtype, compactsupport, neighborhood=="gaussian", reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), umatrix, length(umatrix))
-    return reshape(bmus, 2, nVectors), reshape(umatrix, ncolumns, nrows)
+    # Note that ncolumns and nrows are swapped because Julia is column-first
+    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nrows, ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, kerneltype, _maptype, _gridtype, compactsupport, neighborhood=="gaussian", reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), umatrix, length(umatrix))
+    return reshape(bmus, 2, nVectors), reshape(umatrix, nrows, ncolumns)
 end
 
 end

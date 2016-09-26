@@ -23,13 +23,13 @@ using Somoclu
 
 ncolumns, nrows = 40, 30;
 ndimensions, nvectors = 2, 20;
-c1 = Array{Float32}(rand(ndimensions, nvectors));
-c2 = Array{Float32}(rand(ndimensions, nvectors));
+c1 = Array{Float32}(rand(ndimensions, nvectors)) ./ 5;
+c2 = Array{Float32}(rand(ndimensions, nvectors)) ./ 5;
 c2[1, :] = c2[1, :] .+ 0.2;
-c2[2, :] = c2[1, :] .+ 0.5;
-c3 = Array{Float32}(rand(ndimensions, nvectors));
+c2[2, :] = c2[2, :] .+ 0.5;
+c3 = Array{Float32}(rand(ndimensions, nvectors)) ./ 5;
 c3[1, :] = c3[1, :] .+ 0.4;
-c3[2, :] = c3[1, :] .+ 0.1;
+c3[2, :] = c3[2, :] .+ 0.1;
 data = hcat(c1, c2, c3);
 
 codebook, bmus, umatrix = train(data, ncolumns, nrows, maptype="toroid");
