@@ -22,7 +22,7 @@ A simple example is as follows.
 using Somoclu
 
 ncolumns, nrows = 40, 30;
-ndimensions, nvectors = 2, 20;
+ndimensions, nvectors = 2, 50;
 c1 = Array{Float32}(rand(ndimensions, nvectors)) ./ 5;
 c2 = Array{Float32}(rand(ndimensions, nvectors)) ./ 5;
 c2[1, :] = c2[1, :] .+ 0.2;
@@ -33,6 +33,14 @@ c3[2, :] = c3[2, :] .+ 0.1;
 data = hcat(c1, c2, c3);
 
 codebook, bmus, umatrix = train(data, ncolumns, nrows, maptype="toroid");
+```
+
+Then you can plot the result with a plotting package of your choice. For example:
+```julia
+using PyPlot
+class_colors = vcat(["red" for _=1:50], ["blue" for _=1:50], ["green" for _=1:50]);
+imshow(umatrix, cmap="Spectral_r")
+scatter(bmus[1, :], bmus[2, :], c=class_colors)
 ```
 
 Citation
