@@ -19,7 +19,7 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
 
 
 # Arguments
-* `compactsupport::Bool=false`: Cut off map updates beyond the training radius
+* `compactsupport::Bool=true`: Cut off map updates beyond the training radius
                                 with the Gaussian neighborhood.
 * `epochs::Integer=10`: The number of epochs to train the map for.
 * `gridtype::String="rectangular"`: Specify the grid form of the nodes:
@@ -31,10 +31,10 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
                                      `"gaussian"` or `"bubble"`.
 * `stdCoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
                            exp(-||x-y||^2/(2*(coeff*radius)^2))
-* `radius0::Integer=0`: The initial radius on the map where the update happens
+* `radius0::Float32=0`: The initial radius on the map where the update happens
                        around a best matching unit. Default value of 0 will
                        trigger a value of min(n_columns, n_rows)/2.
-* `radiusN::Integer=1`: The radius on the map where the update happens around a
+* `radiusN::Float32=1`: The radius on the map where the update happens around a
                        best matching unit in the final epoch.
 * `radiuscooling::String="linear"`: The cooling strategy between radius0 and
                                     radiusN: `"linear"` or `"exponential"`.
@@ -44,7 +44,7 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
                                    scaleN: `"linear"` or `"exponential"`.
 
 """
-function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=false, neighborhood="gaussian", stdCoeff=0.5)
+function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=true, neighborhood="gaussian", stdCoeff=0.5)
     nDimensions, nVectors = size(data)
     codebook = Array{Float32}(nDimensions, ncolumns*nrows);
     # These two lines trigger the C++ code to randomly initialize the codebook
@@ -63,7 +63,7 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data` given an initia
 The codebook will be updated during the training.
 
 # Arguments
-* `compactsupport::Bool=false`: Cut off map updates beyond the training radius
+* `compactsupport::Bool=true`: Cut off map updates beyond the training radius
                                 with the Gaussian neighborhood.
 * `epochs::Integer=10`: The number of epochs to train the map for.
 * `gridtype::String="rectangular"`: Specify the grid form of the nodes:
@@ -75,10 +75,10 @@ The codebook will be updated during the training.
                                      `"gaussian"` or `"bubble"`.
 * `stdCoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
                            exp(-||x-y||^2/(2*(coeff*radius)^2))
-* `radius0::Integer=0`: The initial radius on the map where the update happens
+* `radius0::Float32=0`: The initial radius on the map where the update happens
                        around a best matching unit. Default value of 0 will
                        trigger a value of min(n_columns, n_rows)/2.
-* `radiusN::Integer=1`: The radius on the map where the update happens around a
+* `radiusN::Float32=1`: The radius on the map where the update happens around a
                        best matching unit in the final epoch.
 * `radiuscooling::String="linear"`: The cooling strategy between radius0 and
                                     radiusN: `"linear"` or `"exponential"`.
@@ -88,7 +88,7 @@ The codebook will be updated during the training.
                                    scaleN: `"linear"` or `"exponential"`.
 
 """
-function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=false, neighborhood="gaussian", stdCoeff=0.5)
+function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=true, neighborhood="gaussian", stdCoeff=0.5)
     if radiuscooling == "linear"
         _radiuscooling = 0
     elseif radiuscooling == "exponential"
@@ -122,7 +122,7 @@ function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, 
     umatrix = Array{Float32}(ncolumns*nrows);
 
     # Note that ncolumns and nrows are swapped because Julia is column-first
-    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nrows, ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, kerneltype, _maptype, _gridtype, compactsupport, neighborhood=="gaussian", stdCoeff, reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), umatrix, length(umatrix))
+    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nrows, ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, kerneltype, _maptype, _gridtype, compactsupport, neighborhood=="gaussian", stdCoeff, reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), umatrix, length(umatrix))
     bmus = reshape(bmus, 2, nVectors)
     bmus[1, :], bmus[2, :] = bmus[2, :], bmus[1, :];
     return bmus, reshape(umatrix, nrows, ncolumns)
