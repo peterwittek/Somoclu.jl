@@ -4,6 +4,8 @@ module Somoclu
 
 using BinDeps
 
+using MultivariateStats: PCA, fit, principalvars, projection
+
 export train, train!
 
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
@@ -24,13 +26,13 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
 * `epochs::Integer=10`: The number of epochs to train the map for.
 * `gridtype::String="rectangular"`: Specify the grid form of the nodes:
                                     `"rectangular"` or `"hexagonal"`
+* `initialization::String="random"`: Specify the codebook initialization:
+                                     `"random"` or `"pca"`.
 * `kerneltype::Integer=0`: Specify which kernel to use: 0 for dense CPU kernel
                           or 1 for dense GPU kernel (if compiled with it).
 * `maptype::String="planar"`: Specify the map topology: `"planar"` or `"toroid"`
 * `neighborhood::String="gaussian"`: Specify the neighborhood function:
                                      `"gaussian"` or `"bubble"`.
-* `stdCoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
-                           exp(-||x-y||^2/(2*(coeff*radius)^2))
 * `radius0::Float32=0`: The initial radius on the map where the update happens
                        around a best matching unit. Default value of 0 will
                        trigger a value of min(n_columns, n_rows)/2.
@@ -42,14 +44,40 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
 * `scaleN::Float32=0.01`: The learning scale in the final epoch.
 * `scalecooling::String="linear"`: The cooling strategy between scale0 and
                                    scaleN: `"linear"` or `"exponential"`.
+* `stdCoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
+                           exp(-||x-y||^2/(2*(coeff*radius)^2))
 
 """
-function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=true, neighborhood="gaussian", stdCoeff=0.5)
+function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=true, neighborhood="gaussian", stdCoeff=0.5, initialization="random")
     nDimensions, nVectors = size(data)
-    codebook = Array{Float32}(nDimensions, ncolumns*nrows);
-    # These two lines trigger the C++ code to randomly initialize the codebook
-    codebook[1, 1] = 1000.0
-    codebook[2, 1] = 2000.0
+    if initialization == "random"
+        codebook = Array{Float32}(nDimensions, ncolumns*nrows);
+        # These two lines trigger the C++ code to randomly initialize the codebook
+        codebook[1, 1] = 1000.0
+        codebook[2, 1] = 2000.0
+    elseif initialization == "pca"
+        coord = zeros(Float32, ncolumns*nrows, 2);
+        for i = 1:ncolumns*nrows
+            coord[i, 1] = div(i-1, ncolumns)
+            coord[i, 2] = rem(i-1, ncolumns)
+        end
+        coord = coord ./ [nrows-1 ncolumns-1];
+        coord = 2*(coord - .5);
+        me = mean(data, 2);
+        M = fit(PCA, data.-me; maxoutdim=2);
+        eigval = principalvars(M);
+        eigvec = projection(M);
+        norms = [norm(eigvec[:, i]) for i in 1:2];
+        eigvec = ((eigvec' ./ norms) .* eigval)'
+        codebook = repeat(me, outer=[1, ncolumns*nrows])
+        for j = 1:ncolumns*nrows
+            for i = 1:2
+                codebook[:, j] = codebook[:, j] + coord[j, i] * eigvec[:, i]
+            end
+        end
+    else
+        error("Unknown initialization method")
+    end
     umatrix, bmus = train!(codebook, data, ncolumns, nrows, epochs=epochs, radius0=radius0, radiusN=radiusN, radiuscooling=radiuscooling, scale0=scale0, scaleN=scaleN, scalecooling=scalecooling, kerneltype=kerneltype, maptype=maptype, gridtype=gridtype, compactsupport=compactsupport, neighborhood=neighborhood, stdCoeff=stdCoeff)
     return codebook, umatrix, bmus
 end
