@@ -3,10 +3,9 @@ __precompile__(true)
 module Somoclu
 
 using BinDeps
-
 using MultivariateStats: PCA, fit, principalvars, projection
 
-export train, train!
+export Som, train!
 
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
@@ -15,17 +14,16 @@ else
 end
 
 """
-    train(data::Array{Float32, 2}, ncolumns, nrows; <keyword arguments>)
+    Som(ncolumns, nrows; <keyword arguments>)
 
-Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
-
+Self-organizing map of size `ncolumns`x`nrows`.
 
 # Arguments
 * `compactsupport::Bool=true`: Cut off map updates beyond the training radius
                                 with the Gaussian neighborhood.
-* `epochs::Integer=10`: The number of epochs to train the map for.
 * `gridtype::String="rectangular"`: Specify the grid form of the nodes:
                                     `"rectangular"` or `"hexagonal"`
+* `initialcodebook::Array{32, 2}=nothing`: Specify an initial codebook.
 * `initialization::String="random"`: Specify the codebook initialization:
                                      `"random"` or `"pca"`.
 * `kerneltype::Integer=0`: Specify which kernel to use: 0 for dense CPU kernel
@@ -33,6 +31,56 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
 * `maptype::String="planar"`: Specify the map topology: `"planar"` or `"toroid"`
 * `neighborhood::String="gaussian"`: Specify the neighborhood function:
                                      `"gaussian"` or `"bubble"`.
+* `stdcoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
+                           exp(-||x-y||^2/(2\*(coeff\*radius)^2))
+
+"""
+type Som
+    ncolumns::Int
+    nrows::Int
+    kerneltype::Int
+    maptype::String
+    gridtype::String
+    compactsupport::Bool
+    neighborhood::String
+    stdcoeff::Float32
+    initialization::String
+    codebook::Array{Float32, 2}
+    bmus::Array{Cint, 2}
+    umatrix::Array{Float32, 2}
+    function Som(ncolumns, nrows; kerneltype=0, maptype="planar", 
+        gridtype="square", compactsupport=true, neighborhood="gaussian", 
+        stdcoeff=0.5, initialization="random", initialcodebook=nothing)
+        if maptype != "planar" && maptype != "toroid"
+            error("Unknown map type!")
+        elseif gridtype != "square" && gridtype != "hexagonal"
+            error("Unknown grid type!")
+        elseif neighborhood != "gaussian" && neighborhood != "bubble"
+            error("Unknown neighborhood function!")
+        elseif initialization != "random" && initialization != "pca"
+            error("Unknown initialization!")
+        elseif kerneltype != 0 && kerneltype != 1
+            error("Unsupported kernel type!")
+        end
+        if initialcodebook != nothing
+            new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
+            neighborhood, stdcoeff, initialization, initialcodebook)
+        else
+            new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
+            neighborhood, stdcoeff, initialization)
+        end
+    end
+end
+
+"""
+    train!(som::Som, data::Array{Float32, 2}; <keyword arguments>)
+
+Train a self-organizing map `som` on `data`.
+
+The som will be updated during training.
+
+# Arguments
+* `epochs::Integer=10`: The number of epochs to train the map for.
 * `radius0::Float32=0`: The initial radius on the map where the update happens
                        around a best matching unit. Default value of 0 will
                        trigger a value of min(n_columns, n_rows)/2.
@@ -44,24 +92,22 @@ Train a self-organizing map of size `ncolumns`x`nrows` on `data`.
 * `scaleN::Float32=0.01`: The learning scale in the final epoch.
 * `scalecooling::String="linear"`: The cooling strategy between scale0 and
                                    scaleN: `"linear"` or `"exponential"`.
-* `stdCoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
-                           exp(-||x-y||^2/(2*(coeff*radius)^2))
 
 """
-function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=true, neighborhood="gaussian", stdCoeff=0.5, initialization="random")
+function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear")
     nDimensions, nVectors = size(data)
-    if initialization == "random"
-        codebook = Array{Float32}(nDimensions, ncolumns*nrows);
+    if som.initialization == "random"
+        som.codebook = Array{Float32}(nDimensions, som.ncolumns*som.nrows);
         # These two lines trigger the C++ code to randomly initialize the codebook
-        codebook[1, 1] = 1000.0
-        codebook[2, 1] = 2000.0
-    elseif initialization == "pca"
-        coord = zeros(Float32, ncolumns*nrows, 2);
-        for i = 1:ncolumns*nrows
-            coord[i, 1] = div(i-1, ncolumns)
-            coord[i, 2] = rem(i-1, ncolumns)
+        som.codebook[1, 1] = 1000.0
+        som.codebook[2, 1] = 2000.0
+    elseif som.initialization == "pca"
+        coord = zeros(Float32, som.ncolumns*som.nrows, 2);
+        for i = 1:som.ncolumns*som.nrows
+            coord[i, 1] = div(i-1, som.ncolumns)
+            coord[i, 2] = rem(i-1, som.ncolumns)
         end
-        coord = coord ./ [nrows-1 ncolumns-1];
+        coord = coord ./ [som.nrows-1 som.ncolumns-1];
         coord = 2*(coord - .5);
         me = mean(data, 2);
         M = fit(PCA, data.-me; maxoutdim=2);
@@ -69,54 +115,15 @@ function train(data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, r
         eigvec = projection(M);
         norms = [norm(eigvec[:, i]) for i in 1:2];
         eigvec = ((eigvec' ./ norms) .* eigval)'
-        codebook = repeat(me, outer=[1, ncolumns*nrows])
-        for j = 1:ncolumns*nrows
+        som.codebook = repeat(me, outer=[1, som.ncolumns*som.nrows])
+        for j = 1:som.ncolumns*som.nrows
             for i = 1:2
-                codebook[:, j] = codebook[:, j] + coord[j, i] * eigvec[:, i]
+                som.codebook[:, j] = som.codebook[:, j] + coord[j, i] * eigvec[:, i]
             end
         end
     else
         error("Unknown initialization method")
     end
-    umatrix, bmus = train!(codebook, data, ncolumns, nrows, epochs=epochs, radius0=radius0, radiusN=radiusN, radiuscooling=radiuscooling, scale0=scale0, scaleN=scaleN, scalecooling=scalecooling, kerneltype=kerneltype, maptype=maptype, gridtype=gridtype, compactsupport=compactsupport, neighborhood=neighborhood, stdCoeff=stdCoeff)
-    return codebook, umatrix, bmus
-end
-
-"""
-    train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, nrows; <keyword arguments>)
-
-Train a self-organizing map of size `ncolumns`x`nrows` on `data` given an initial
-`codebook`.
-
-The codebook will be updated during the training.
-
-# Arguments
-* `compactsupport::Bool=true`: Cut off map updates beyond the training radius
-                                with the Gaussian neighborhood.
-* `epochs::Integer=10`: The number of epochs to train the map for.
-* `gridtype::String="rectangular"`: Specify the grid form of the nodes:
-                                    `"rectangular"` or `"hexagonal"`
-* `kerneltype::Integer=0`: Specify which kernel to use: 0 for dense CPU kernel
-                          or 1 for dense GPU kernel (if compiled with it).
-* `maptype::String="planar"`: Specify the map topology: `"planar"` or `"toroid"`
-* `neighborhood::String="gaussian"`: Specify the neighborhood function:
-                                     `"gaussian"` or `"bubble"`.
-* `stdCoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
-                           exp(-||x-y||^2/(2*(coeff*radius)^2))
-* `radius0::Float32=0`: The initial radius on the map where the update happens
-                       around a best matching unit. Default value of 0 will
-                       trigger a value of min(n_columns, n_rows)/2.
-* `radiusN::Float32=1`: The radius on the map where the update happens around a
-                       best matching unit in the final epoch.
-* `radiuscooling::String="linear"`: The cooling strategy between radius0 and
-                                    radiusN: `"linear"` or `"exponential"`.
-* `scale0::Float32=0.1`: The initial learning scale.
-* `scaleN::Float32=0.01`: The learning scale in the final epoch.
-* `scalecooling::String="linear"`: The cooling strategy between scale0 and
-                                   scaleN: `"linear"` or `"exponential"`.
-
-"""
-function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, nrows; epochs=10, radius0=0, radiusN=1, radiuscooling="linear", scale0=0.1, scaleN=0.01, scalecooling="linear", kerneltype=0, maptype="planar", gridtype="square", compactsupport=true, neighborhood="gaussian", stdCoeff=0.5)
     if radiuscooling == "linear"
         _radiuscooling = 0
     elseif radiuscooling == "exponential"
@@ -131,29 +138,24 @@ function train!(codebook::Array{Float32, 2}, data::Array{Float32, 2}, ncolumns, 
     else
         error("Unknown scale cooling")
     end
-    if maptype == "planar"
+    if som.maptype == "planar"
         _maptype = 0
-    elseif maptype == "toroid"
+    elseif som.maptype == "toroid"
         _maptype = 1
-    else
-        error("Unknown map type")
     end
-    if gridtype == "square"
+    if som.gridtype == "square"
         _gridtype = 0
-    elseif gridtype == "hexagonal"
+    elseif som.gridtype == "hexagonal"
         _gridtype = 1
-    else
-        error("Unknown grid type")
     end
-    nDimensions, nVectors = size(data)
     bmus = Array{Cint}(nVectors*2);
-    umatrix = Array{Float32}(ncolumns*nrows);
-
-    # Note that ncolumns and nrows are swapped because Julia is column-first
-    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, nrows, ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, kerneltype, _maptype, _gridtype, compactsupport, neighborhood=="gaussian", stdCoeff, reshape(codebook, length(codebook)), length(codebook), bmus, length(bmus), umatrix, length(umatrix))
-    bmus = reshape(bmus, 2, nVectors)
-    bmus[1, :], bmus[2, :] = bmus[2, :], bmus[1, :];
-    return bmus, reshape(umatrix, nrows, ncolumns)
+    umatrix = Array{Float32}(som.ncolumns*som.nrows);
+    # Note that som.ncolumns and som.nrows are swapped because Julia is column-first
+    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, som.nrows, som.ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, som.kerneltype, _maptype, _gridtype, som.compactsupport, som.neighborhood=="gaussian", som.stdcoeff, reshape(som.codebook, length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix, length(umatrix))
+    som.umatrix = reshape(umatrix, som.nrows, som.ncolumns);
+    som.bmus = reshape(bmus, 2, nVectors)
+    som.bmus[1, :], som.bmus[2, :] = som.bmus[2, :], som.bmus[1, :];
+    return nothing
 end
 
 end
