@@ -154,7 +154,7 @@ function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN
     ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, som.nrows, som.ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, som.kerneltype, _maptype, _gridtype, som.compactsupport, som.neighborhood=="gaussian", som.stdcoeff, reshape(som.codebook, length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix, length(umatrix))
     som.umatrix = reshape(umatrix, som.nrows, som.ncolumns);
     som.bmus = reshape(bmus, 2, nVectors)
-    som.bmus[1, :], som.bmus[2, :] = som.bmus[2, :], som.bmus[1, :];
+    som.bmus[1, :], som.bmus[2, :] = som.bmus[2, :]+1, som.bmus[1, :]+1;
     return nothing
 end
 
