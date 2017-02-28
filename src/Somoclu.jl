@@ -33,7 +33,7 @@ Self-organizing map of size `ncolumns`x`nrows`.
                                      `"gaussian"` or `"bubble"`.
 * `stdcoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
                            exp(-||x-y||^2/(2\*(coeff\*radius)^2))
-
+* `verbose::Integer=0`: Specify verbosity: 0, 1, or 2.
 """
 type Som
     ncolumns::Int
@@ -44,13 +44,15 @@ type Som
     compactsupport::Bool
     neighborhood::String
     stdcoeff::Float32
+    verbose::Int
     initialization::String
     codebook::Array{Float32, 2}
     bmus::Array{Cint, 2}
     umatrix::Array{Float32, 2}
     function Som(ncolumns, nrows; kerneltype=0, maptype="planar", 
         gridtype="square", compactsupport=true, neighborhood="gaussian", 
-        stdcoeff=0.5, initialization="random", initialcodebook=nothing)
+        stdcoeff=0.5, verbose=0, initialization="random",
+        initialcodebook=nothing)
         if maptype != "planar" && maptype != "toroid"
             error("Unknown map type!")
         elseif gridtype != "square" && gridtype != "hexagonal"
@@ -61,13 +63,15 @@ type Som
             error("Unknown initialization!")
         elseif kerneltype != 0 && kerneltype != 1
             error("Unsupported kernel type!")
+        elseif verbose < 0 && verbose > 2
+            error("Unsupported verbosity level!")
         end
         if initialcodebook != nothing
             new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
-            neighborhood, stdcoeff, initialization, initialcodebook)
+            neighborhood, stdcoeff, verbose, initialization, initialcodebook)
         else
             new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
-            neighborhood, stdcoeff, initialization)
+            neighborhood, stdcoeff, verbose, initialization)
         end
     end
 end
@@ -151,7 +155,7 @@ function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN
     bmus = Array{Cint}(nVectors*2);
     umatrix = Array{Float32}(som.ncolumns*som.nrows);
     # Note that som.ncolumns and som.nrows are swapped because Julia is column-first
-    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, som.nrows, som.ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, som.kerneltype, _maptype, _gridtype, som.compactsupport, som.neighborhood=="gaussian", som.stdcoeff, reshape(som.codebook, length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix, length(umatrix))
+    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Cuint, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, som.nrows, som.ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, som.kerneltype, _maptype, _gridtype, som.compactsupport, som.neighborhood=="gaussian", som.stdcoeff, som.verbose, reshape(som.codebook, length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix, length(umatrix))
     som.umatrix = reshape(umatrix, som.nrows, som.ncolumns);
     som.bmus = reshape(bmus, 2, nVectors)
     som.bmus[1, :], som.bmus[2, :] = som.bmus[2, :]+1, som.bmus[1, :]+1;
