@@ -96,4 +96,3 @@ else
 	@BinDeps.install Dict([:libsomoclu => :libsomoclu])
     pop!(BinDeps.defaults)
 end
-
