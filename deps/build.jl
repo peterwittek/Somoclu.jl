@@ -2,7 +2,7 @@ using BinDeps
 
 @BinDeps.setup
 
-somoclu_version="1.7.3"
+somoclu_version="1.7.4"
 
 link = "https://github.com/peterwittek/somoclu/releases/download/$somoclu_version/somoclu-$(somoclu_version).tar.gz"
 
