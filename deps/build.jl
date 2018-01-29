@@ -2,7 +2,7 @@ using BinDeps
 
 @BinDeps.setup
 
-somoclu_version="1.7.3"
+somoclu_version="1.7.4"
 
 link = "https://github.com/peterwittek/somoclu/releases/download/$somoclu_version/somoclu-$(somoclu_version).tar.gz"
 
@@ -84,7 +84,7 @@ else
 					cp(somoclucppfile, joinpath(somoclubuilddir, "somoclu.cpp"), 
 					   remove_destination=true)
 					end)
-				`../../usr/bin/make.exe ARCH=$(Sys.ARCH)`
+				`../../usr/bin/make.exe ARCH=$(Sys.ARCH) version=$(somoclu_version)`
 				CreateDirectory(BinDeps.libdir(libsomoclu))
 				FileRule(joinpath(BinDeps.usrdir(libsomoclu),"lib","libsomoclu.dll"), ()->
 					cp("libsomoclu.dll", joinpath(BinDeps.libdir(libsomoclu), "libsomoclu.dll"), 
@@ -96,4 +96,3 @@ else
 	@BinDeps.install Dict([:libsomoclu => :libsomoclu])
     pop!(BinDeps.defaults)
 end
-

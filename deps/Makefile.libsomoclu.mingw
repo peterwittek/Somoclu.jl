@@ -2,7 +2,6 @@ SHELL=C:/Windows/system32/cmd
 
 # Package-related substitution variables
 package	= somoclu
-version	= 1.7.3
 tarname	= somoclu
 distdir	= $(tarname)-$(version)
 
@@ -24,7 +23,7 @@ CXXFLAGS       =  --sysroot=$(SYSROOT)
 LDFLAGS        = -Wl,-rpath=$(RPATH1) -Wl,-rpath=$(RPATH2)
 
 # VPATH-related substitution variables
-srcdir	 =  ..\\..\\src\\somoclu-1.7.3\\src\\
+srcdir	 =  ..\\..\\src\\$(distdir)\\src\\
 VPATH	  = srcdir
 
 LIBOBJS=sparseCpuKernels.o denseCpuKernels.o mapDistanceFunctions.o training.o uMatrix.o

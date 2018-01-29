@@ -1,5 +1,6 @@
 [![Build Status](https://travis-ci.org/peterwittek/Somoclu.jl.svg?branch=master)](https://travis-ci.org/peterwittek/Somoclu.jl)
-[![Coverage Status](https://coveralls.io/repos/peterwittek/Somoclu.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/peterwittek/Somoclu.jl?branch=master)
+[![Win status](https://ci.appveyor.com/api/projects/status/12dpu5p5e5wb2fwr?svg=true)](https://ci.appveyor.com/project/peterwittek/somoclu-jl)
+[![Coverage Status](https://coveralls.io/repos/github/peterwittek/Somoclu.jl/badge.svg?branch=master)](https://coveralls.io/github/peterwittek/Somoclu.jl?branch=master)
 [![codecov.io](http://codecov.io/github/peterwittek/Somoclu.jl/coverage.svg?branch=master)](http://codecov.io/github/peterwittek/Somoclu.jl?branch=master)
 
 Somoclu.jl - Julia Interface for Somoclu
