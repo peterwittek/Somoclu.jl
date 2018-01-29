@@ -1,3 +1,7 @@
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
+deps/*
+!deps/build.jl
+!deps/Makefile.libsomoclu.mingw
+!deps/somoclu.cpp
