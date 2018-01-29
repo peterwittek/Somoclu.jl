@@ -84,9 +84,7 @@ else
 					cp(somoclucppfile, joinpath(somoclubuilddir, "somoclu.cpp"), 
 					   remove_destination=true)
 					end)
-				() -> begin
-					run(pipeline(`../../usr/bin/make.exe -d ARCH=$(Sys.ARCH)`, "make.out"))
-				end
+				`../../usr/bin/make.exe ARCH=$(Sys.ARCH)`
 				CreateDirectory(BinDeps.libdir(libsomoclu))
 				FileRule(joinpath(BinDeps.usrdir(libsomoclu),"lib","libsomoclu.dll"), ()->
 					cp("libsomoclu.dll", joinpath(BinDeps.libdir(libsomoclu), "libsomoclu.dll"), 
