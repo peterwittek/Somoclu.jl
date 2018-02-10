@@ -14,16 +14,6 @@ else
     error("Somoclu not properly installed. Please run Pkg.build(\"Somoclu\")")
 end
 
-function OpenMPSupported()
-    retval = false
-    try
-        retval = cglobal((:update_messages, libsomoclu)) != C_NULL
-    catch
-    end
-    retval && throw(ErrorException("OpenMP version is not supported."))
-    return retval
-end
-
 """
     Som(ncolumns, nrows; <keyword arguments>)
 
@@ -56,7 +46,6 @@ mutable struct Som
     neighborhood::String
     stdcoeff::Float32
     verbose::Int
-    hasOpenMP::Bool
     useCustomDistance::Bool
     initialization::String
     codebook::Array{Float32, 2}
@@ -65,8 +54,8 @@ mutable struct Som
 
     function Som(ncolumns, nrows; kerneltype=0, maptype="planar",
         gridtype="square", compactsupport=true, neighborhood="gaussian",
-        stdcoeff=0.5, verbose=0, hasOpenMP=OpenMPSupported(),
-        useCustomDistance=false, initialization="random", initialcodebook=nothing)
+        stdcoeff=0.5, verbose=0, useCustomDistance=false, initialization="random",
+        initialcodebook=nothing)
 
         maptype != "planar"        && maptype != "toroid" &&
             error("Unknown map type!")
@@ -83,34 +72,30 @@ mutable struct Som
 
         if initialcodebook != nothing
             new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
-            neighborhood, stdcoeff, verbose, hasOpenMP, useCustomDistance, initialization,
+            neighborhood, stdcoeff, verbose, useCustomDistance, initialization,
             initialcodebook)
         else
             new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
-            neighborhood, stdcoeff, verbose, hasOpenMP, useCustomDistance, initialization)
+            neighborhood, stdcoeff, verbose, useCustomDistance, initialization)
         end
     end
 end
 
-release(cond::AsyncCondition) = close(cond) #try; close(cond); catch; end
-release(cond) = 0
-
 distance(p1::Ptr{Cfloat}, p2::Ptr{Cfloat}, d::Cuint) = Cfloat(0.0)::Cfloat
 
 function get_parameters(context::Ptr{Void})
-    dim = unsafe_load(Ptr{Cuint}(context))
-    p1 = Ptr{Cfloat}(context + Core.sizeof(Cuint))::Ptr{Cfloat}
-    p2 = (p1 + Core.sizeof(Ptr{Cfloat}))::Ptr{Cfloat}
-    pr = (p2 + Core.sizeof(Ptr{Cfloat}))::Ptr{Cfloat}
-    return dim, p1, p2, pr
+    pr = Ptr{Cfloat}(context)::Ptr{Cfloat}
+    dim = unsafe_load(Ptr{Cuint}(context + Core.sizeof(Cfloat)))::Cuint
+    p1a = Ptr{Ptr{Cfloat}}(pr + Core.sizeof(Cfloat) + Core.sizeof(Cuint))::Ptr{Ptr{Cfloat}}
+    p2a = (p1a + Core.sizeof(Ptr{Cfloat}))::Ptr{Ptr{Cfloat}}
+    p1 = unsafe_load(p1a)
+    p2 = unsafe_load(p2a)
+    rem = Ptr{Void}(p2a + Core.sizeof(Ptr{Cfloat}))::Ptr{Void}
+    return dim, p1, p2, pr, rem
 end
 
-sizeof_message() = Core.sizeof(Cuint) + 2*Core.sizeof(Ptr{Cfloat}) + Core.sizeof(Cfloat)
-
-next_message(msg) = unsafe_load(Ptr{Void}(msg + sizeof_message()))::Ptr{Void}
-
 function nothreads_distance(context::Ptr{Void})
-    dim, p1, p2, pr = get_parameters(context)
+    dim, p1, p2, pr, ignore = get_parameters(context)
     r = distance(p1, p2, dim)
     unsafe_store!(pr, r)
     return r::Cfloat
@@ -118,28 +103,7 @@ end
 
 function __init__()
     global const fdist_nt_c = cfunction(nothreads_distance, Cfloat, (Ptr{Void}, ))
-end
-
-function threads_distance(cond::AsyncCondition)
-    println("I am here in threads")
-    #=
-    # All the messages which needs to be processed have been received. So remove them
-    # from the synchronization object for further compuations. New messages attached
-    # do not have to track which messages are resolved.
-    msgs = ccall((:detach_messages, libsomoclu), Ptr{Void}, (Ptr{Void}, ), cond.handle)
-    msgs == C_NULL && return 0
-    iter = msgs
-    count = 0
-    while true
-        count += 1
-        nothreads_distance(iter)
-        iter = next_message(iter)
-        iter == msgs && break
-    end
-    println("Total nodes: $count")
-    ccall((:update_messages, libsomoclu), Void, (Ptr{Void}, ), msgs)
-    =#
-    return 0
+    global mt_data_map = Dict{AsyncCondition, Ref{Ptr{Void}}}()
 end
 
 """
@@ -215,16 +179,10 @@ function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN
 
     global fdist_nt_c
 
-    cond = nothing
-    fp = !som.useCustomDistance ? C_NULL :
-         !som.hasOpenMP         ? fdist_nt_c:
-                                  (cond = AsyncCondition(threads_distance); cond)
-
-    println(fp)
-    println(cond)
+    fp = !som.useCustomDistance ? C_NULL : fdist_nt_c
 
     # Note that som.ncolumns and som.nrows are swapped because Julia is column-first
-    ccall((:julia_train, libsomoclu), Void,
+    ccall((:julia_train, libjlsomoclu), Void,
           (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint,
            Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Cuint,
            Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint, Ptr{Void}),
@@ -234,8 +192,6 @@ function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN
           som.neighborhood=="gaussian", som.stdcoeff, som.verbose, reshape(som.codebook,
           length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix,
           length(umatrix), fp)
-
-    release(cond)
 
     som.umatrix = reshape(umatrix, som.nrows, som.ncolumns);
     som.bmus = reshape(bmus, 2, nVectors)
