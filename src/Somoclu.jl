@@ -4,8 +4,9 @@ module Somoclu
 
 using BinDeps
 using MultivariateStats: PCA, fit, principalvars, projection
+using Base: AsyncCondition
 
-export Som, train!
+export Som, train!, distance
 
 if isfile(joinpath(dirname(@__FILE__),"..","deps","deps.jl"))
     include("../deps/deps.jl")
@@ -33,9 +34,9 @@ Self-organizing map of size `ncolumns`x`nrows`.
                                      `"gaussian"` or `"bubble"`.
 * `stdcoeff::Float32=0.5`: Coefficient in the Gaussian neighborhood function
                            exp(-||x-y||^2/(2\*(coeff\*radius)^2))
-* `verbose::Integer=0`: Specify verbosity: 0, 1, or 2.
+* `verbose::Integer=0p`: Specify verbosity: 0, 1, or 2.
 """
-type Som
+mutable struct Som
     ncolumns::Int
     nrows::Int
     kerneltype::Int
@@ -45,35 +46,64 @@ type Som
     neighborhood::String
     stdcoeff::Float32
     verbose::Int
+    useCustomDistance::Bool
     initialization::String
     codebook::Array{Float32, 2}
     bmus::Array{Cint, 2}
     umatrix::Array{Float32, 2}
-    function Som(ncolumns, nrows; kerneltype=0, maptype="planar", 
-        gridtype="square", compactsupport=true, neighborhood="gaussian", 
-        stdcoeff=0.5, verbose=0, initialization="random",
+
+    function Som(ncolumns, nrows; kerneltype=0, maptype="planar",
+        gridtype="square", compactsupport=true, neighborhood="gaussian",
+        stdcoeff=0.5, verbose=0, useCustomDistance=false, initialization="random",
         initialcodebook=nothing)
-        if maptype != "planar" && maptype != "toroid"
+
+        maptype != "planar"        && maptype != "toroid" &&
             error("Unknown map type!")
-        elseif gridtype != "square" && gridtype != "hexagonal"
+        gridtype != "square"       && gridtype != "hexagonal" &&
             error("Unknown grid type!")
-        elseif neighborhood != "gaussian" && neighborhood != "bubble"
+        neighborhood != "gaussian" && neighborhood != "bubble" &&
             error("Unknown neighborhood function!")
-        elseif initialization != "random" && initialization != "pca"
+        initialization != "random" && initialization != "pca" &&
             error("Unknown initialization!")
-        elseif kerneltype != 0 && kerneltype != 1
+        kerneltype != 0            && kerneltype != 1 &&
             error("Unsupported kernel type!")
-        elseif verbose < 0 && verbose > 2
+        verbose < 0                && verbose > 2 &&
             error("Unsupported verbosity level!")
-        end
+
         if initialcodebook != nothing
             new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
-            neighborhood, stdcoeff, verbose, initialization, initialcodebook)
+            neighborhood, stdcoeff, verbose, useCustomDistance, initialization,
+            initialcodebook)
         else
             new(ncolumns, nrows, kerneltype, maptype, gridtype, compactsupport,
-            neighborhood, stdcoeff, verbose, initialization)
+            neighborhood, stdcoeff, verbose, useCustomDistance, initialization)
         end
     end
+end
+
+distance(p1::Ptr{Cfloat}, p2::Ptr{Cfloat}, d::Cuint) = Cfloat(0.0)::Cfloat
+
+function get_parameters(context::Ptr{Void})
+    pr = Ptr{Cfloat}(context)::Ptr{Cfloat}
+    dim = unsafe_load(Ptr{Cuint}(context + Core.sizeof(Cfloat)))::Cuint
+    p1a = Ptr{Ptr{Cfloat}}(pr + Core.sizeof(Cfloat) + Core.sizeof(Cuint))::Ptr{Ptr{Cfloat}}
+    p2a = (p1a + Core.sizeof(Ptr{Cfloat}))::Ptr{Ptr{Cfloat}}
+    p1 = unsafe_load(p1a)
+    p2 = unsafe_load(p2a)
+    rem = Ptr{Void}(p2a + Core.sizeof(Ptr{Cfloat}))::Ptr{Void}
+    return dim, p1, p2, pr, rem
+end
+
+function nothreads_distance(context::Ptr{Void})
+    dim, p1, p2, pr, ignore = get_parameters(context)
+    r = distance(p1, p2, dim)
+    unsafe_store!(pr, r)
+    return r::Cfloat
+end
+
+function __init__()
+    global const fdist_nt_c = cfunction(nothreads_distance, Cfloat, (Ptr{Void}, ))
+    global mt_data_map = Dict{AsyncCondition, Ref{Ptr{Void}}}()
 end
 
 """
@@ -128,34 +158,41 @@ function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN
     else
         error("Unknown initialization method")
     end
-    if radiuscooling == "linear"
-        _radiuscooling = 0
-    elseif radiuscooling == "exponential"
-        _radiuscooling = 1
-    else
-        error("Unknown radius cooling")
-    end
-    if scalecooling == "linear"
-        _scalecooling = 0
-    elseif scalecooling == "exponential"
-        _scalecooling = 1
-    else
-        error("Unknown scale cooling")
-    end
-    if som.maptype == "planar"
-        _maptype = 0
-    elseif som.maptype == "toroid"
-        _maptype = 1
-    end
-    if som.gridtype == "square"
-        _gridtype = 0
-    elseif som.gridtype == "hexagonal"
-        _gridtype = 1
-    end
+    _radiuscooling = radiuscooling == "linear"      ? 0 :
+                     radiuscooling == "exponential" ? 1 :
+                     error("Unknown radius cooling")
+
+    _scalecooling  = scalecooling == "linear"       ? 0 :
+                     scalecooling == "exponential"  ? 1 :
+                     error("Unknown scale cooling")
+
+    _maptype       = som.maptype == "planar"        ? 0 :
+                     som.maptype == "toroid"        ? 1 :
+                     error("Unknown map type!")
+
+    _gridtype      = som.gridtype == "square"       ? 0 :
+                     som.gridtype == "hexagonal"    ? 1 :
+                     error("Unknown grid type!")
+
     bmus = Array{Cint}(nVectors*2);
     umatrix = Array{Float32}(som.ncolumns*som.nrows);
+
+    global fdist_nt_c
+
+    fp = !som.useCustomDistance ? C_NULL : fdist_nt_c
+
     # Note that som.ncolumns and som.nrows are swapped because Julia is column-first
-    ccall((:julia_train, libsomoclu), Void, (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint, Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Cuint, Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint), reshape(data, length(data)), length(data), epochs, som.nrows, som.ncolumns, nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN, _scalecooling, som.kerneltype, _maptype, _gridtype, som.compactsupport, som.neighborhood=="gaussian", som.stdcoeff, som.verbose, reshape(som.codebook, length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix, length(umatrix))
+    ccall((:julia_train, libjlsomoclu), Void,
+          (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint,
+           Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Cuint,
+           Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint, Ptr{Void}),
+          reshape(data, length(data)), length(data), epochs, som.nrows, som.ncolumns,
+          nDimensions, nVectors, radius0, radiusN, _radiuscooling, scale0, scaleN,
+          _scalecooling, som.kerneltype, _maptype, _gridtype, som.compactsupport,
+          som.neighborhood=="gaussian", som.stdcoeff, som.verbose, reshape(som.codebook,
+          length(som.codebook)), length(som.codebook), bmus, length(bmus), umatrix,
+          length(umatrix), fp)
+
     som.umatrix = reshape(umatrix, som.nrows, som.ncolumns);
     som.bmus = reshape(bmus, 2, nVectors)
     som.bmus[1, :], som.bmus[2, :] = som.bmus[2, :]+1, som.bmus[1, :]+1;
