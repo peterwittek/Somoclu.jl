@@ -182,7 +182,7 @@ function train!(som::Som, data::Array{Float32, 2}; epochs=10, radius0=0, radiusN
     fp = !som.useCustomDistance ? C_NULL : fdist_nt_c
 
     # Note that som.ncolumns and som.nrows are swapped because Julia is column-first
-    ccall((:julia_train, libjlsomoclu), Void,
+    ccall((:julia_train, libsomoclu), Void,
           (Ptr{Float32}, Cint, Cuint, Cuint, Cuint, Cuint, Cuint, Float32, Float32, Cuint,
            Float32, Float32, Cuint, Cuint, Cuint, Cuint, Bool, Bool, Float32, Cuint,
            Ptr{Float32}, Cint, Ptr{Cint}, Cint, Ptr{Float32}, Cint, Ptr{Void}),
