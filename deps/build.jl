@@ -13,8 +13,8 @@ if !is_windows()
 								 aliases=["libsomoclu", "libsomoclu.so"], os=:Unix)
 	provides(Sources, Dict([URI(link) => libsomoclu]))
 	provides(BuildProcess,
-			Autotools(libtarget = joinpath("src", "libsomoclu.so"),
-			configure_options=[AbstractString("--without-mpi")]), libsomoclu, os=:Unix)
+			 Autotools(libtarget=joinpath("src", "libsomoclu.so"),
+			           configure_options=[AbstractString("--without-mpi")]), libsomoclu, os=:Unix)
 	@BinDeps.install Dict([:libsomoclu => :libsomoclu])
 else
     using WinRPM
