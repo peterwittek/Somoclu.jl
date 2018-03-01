@@ -6,8 +6,6 @@ somoclu_version="1.7.4"
 
 link = "https://github.com/peterwittek/somoclu/releases/download/1.7.5-pre/somoclu-$(somoclu_version).tar.gz"
 
-println(link)
-
 if !is_windows()
 	libsomoclu = library_dependency("libsomoclu",
 								 aliases=["libsomoclu", "libsomoclu.so"], os=:Unix)
@@ -56,7 +54,7 @@ else
 
 	somoclusrcdir   = joinpath(BinDeps.srcdir(libsomoclu),   "somoclu-$somoclu_version")
 	somoclubuilddir = joinpath(BinDeps.builddir(libsomoclu), "somoclu-$somoclu_version")
-	somoclumakefile = joinpath(BinDeps.depsdir(libsomoclu),  "Makefile.libsomoclu.mingw")
+	somoclumakefile = joinpath(somoclusrcdir, "src", "Makefile.libsomoclu.mingw")
 
 	provides(SimpleBuild,
 		(@build_steps begin
