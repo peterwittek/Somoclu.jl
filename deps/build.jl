@@ -2,9 +2,9 @@ using BinDeps
 
 @BinDeps.setup
 
-somoclu_version="1.7.4"
+somoclu_version="1.7.5"
 
-link = "https://github.com/peterwittek/somoclu/releases/download/1.7.5-pre/somoclu-$(somoclu_version).tar.gz"
+link = "https://github.com/peterwittek/somoclu/releases/download/$(somoclu_version)/somoclu-$(somoclu_version).tar.gz"
 
 if !is_windows()
 	libsomoclu = library_dependency("libsomoclu",
